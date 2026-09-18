@@ -1,0 +1,3 @@
+# Only the HTTP client is a hard dependency; everything else is stdlib.
+# The core Agent Runtime does NOT use any agent framework.
+requests>=2.31.0
