@@ -1,10 +1,12 @@
 # mini-agent — 从零实现的最小可用 Agent
 
 一个不依赖任何 Agent 框架（无 langgraph / openhands / PI 等）的最小 Agent Runtime。
-核心循环、工具注册、LLM 输出解析、session 管理、context 压缩全部手写实现，跑在**真实 LLM API**（Anthropic 兼容 `/v1/messages`）上。
+核心循环、工具注册、LLM 输出解析、session 管理、context 压缩全部手写实现，跑在**真实 LLM API** 上。
+支持两类 provider：**OpenAI 兼容**（DeepSeek / Moonshot / 本地 vLLM，走 `/chat/completions`）
+与 **Anthropic 兼容**（走 `/v1/messages`），用 `MINIAGENT_PROVIDER` 切换。实测已在 DeepSeek `deepseek-chat` 上跑通。
 
 - 语言：Python 3.10+（除 `requests` 外仅用标准库）
-- 已通过 33 个离线单元测试 + 真实 API 端到端冒烟测试
+- 已通过 38 个离线单元测试 + 真实 API（DeepSeek）端到端冒烟测试
 
 ---
 
@@ -15,7 +17,7 @@ cd mini-agent
 python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 
-cp .env.example .env        # 填入 ANTHROPIC_BASE_URL / ANTHROPIC_AUTH_TOKEN
+cp .env.example .env        # 默认用 DeepSeek：填 OPENAI_API_KEY 即可
 python -m miniagent         # 启动交互式多窗口 CLI
 ```
 

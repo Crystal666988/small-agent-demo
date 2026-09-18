@@ -30,13 +30,43 @@ class LLMClient:
         self.timeout = timeout
         self.max_retries = max_retries
 
+    @property
+    def _is_openai(self) -> bool:
+        return self.config.provider == "openai"
+
     def _headers(self) -> dict[str, str]:
-        # Send both auth styles; compatible proxies accept one or the other.
+        if self._is_openai:
+            return {
+                "Authorization": f"Bearer {self.config.auth_token}",
+                "content-type": "application/json",
+            }
+        # Anthropic: send both auth styles; compatible proxies accept either.
         return {
             "x-api-key": self.config.auth_token,
             "Authorization": f"Bearer {self.config.auth_token}",
             "anthropic-version": "2023-06-01",
             "content-type": "application/json",
+        }
+
+    def _build_request(self, system: str, messages: list[dict[str, Any]], max_tokens: int):
+        """Return (url, payload) for the configured provider.
+
+        Anthropic takes `system` as a top-level field. OpenAI-compatible APIs
+        (DeepSeek etc.) expect the system prompt as the first message with
+        role=system, so we prepend it there.
+        """
+        if self._is_openai:
+            oai_messages = [{"role": "system", "content": system}, *messages]
+            return self.config.chat_completions_url, {
+                "model": self.config.model,
+                "max_tokens": max_tokens,
+                "messages": oai_messages,
+            }
+        return self.config.messages_url, {
+            "model": self.config.model,
+            "max_tokens": max_tokens,
+            "system": system,
+            "messages": messages,
         }
 
     def complete(self, system: str, messages: list[dict[str, Any]], *, max_tokens: int = 1024) -> str:
@@ -46,17 +76,12 @@ class LLMClient:
         Raises LLMError on unrecoverable failure so the runtime can degrade
         gracefully instead of crashing.
         """
-        payload = {
-            "model": self.config.model,
-            "max_tokens": max_tokens,
-            "system": system,
-            "messages": messages,
-        }
+        url, payload = self._build_request(system, messages, max_tokens)
         last_err: Exception | None = None
         for attempt in range(self.max_retries):
             try:
                 resp = requests.post(
-                    self.config.messages_url,
+                    url,
                     headers=self._headers(),
                     data=json.dumps(payload),
                     timeout=self.timeout,
@@ -72,9 +97,16 @@ class LLMClient:
             time.sleep(min(2 ** attempt, 8))
         raise LLMError(f"LLM request failed after {self.max_retries} attempts: {last_err}")
 
-    @staticmethod
-    def _extract_text(body: dict[str, Any]) -> str:
-        """Pull concatenated text out of an Anthropic messages response."""
+    def _extract_text(self, body: dict[str, Any]) -> str:
+        """Pull assistant text out of a provider response."""
+        if self._is_openai:
+            try:
+                text = body["choices"][0]["message"]["content"] or ""
+            except (KeyError, IndexError, TypeError):
+                raise LLMError(f"Unexpected OpenAI-style response: {body}")
+            if not text.strip():
+                raise LLMError(f"LLM returned no text content: {body}")
+            return text
         parts = body.get("content", [])
         if not isinstance(parts, list):
             raise LLMError(f"Unexpected LLM response shape: {body}")
