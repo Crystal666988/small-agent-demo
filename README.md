@@ -1,5 +1,7 @@
 # mini-agent — 从零实现的最小可用 Agent
 
+[![tests](https://github.com/Crystal666988/small-agent-demo/actions/workflows/tests.yml/badge.svg)](https://github.com/Crystal666988/small-agent-demo/actions/workflows/tests.yml)
+
 一个不依赖任何 Agent 框架（无 langgraph / openhands / PI 等）的最小 Agent Runtime。
 核心循环、工具注册、LLM 输出解析、session 管理、context 压缩全部手写实现，跑在**真实 LLM API** 上。
 支持两类 provider：**OpenAI 兼容**（DeepSeek / Moonshot / 本地 vLLM，走 `/chat/completions`）
